@@ -8,5 +8,5 @@ width="40" height="40"/>
 
 ### Membros:
     - Thiago André Cardoso Silva
-    - Jonas
-    - Ryan Nicholas
+    - Jonas Vasconcelos Cunha
+    - Ryan Nicholas Maia Vieira
