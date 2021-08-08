@@ -54,6 +54,49 @@ public class BTree {
     public boolean hasNode(int value) {
         return hasNodeRecursive(root, value);
     }
+    
+    public void printNodePreorder(Node n) 
+    {
+    	System.out.print(n.getValue() + " ");
+    	if(n.getLeft() != null) 
+    	{
+    		printNodePreorder(n.getLeft());
+    	}
+    	if(n.getRight() != null) 
+    	{
+    		printNodePreorder(n.getRight());
+    	}
+    }
+    
+    public void printNodeInorder(Node n) 
+    {
+    	if(n.getLeft() != null) 
+    	{
+    		printNodeInorder(n.getLeft());
+    	}
+    	System.out.print(n.getValue() + " ");
+    	if(n.getRight() != null) 
+    	{
+    		printNodeInorder(n.getRight());
+    	}
+    }
+    
+    public void printNodePostorder(Node n) 
+    {
+    	if(n.getLeft() != null) 
+    	{
+    		printNodePostorder(n.getLeft());
+    	}
+    	if(n.getRight() != null) 
+    	{
+    		printNodePostorder(n.getRight());
+    	}
+    	System.out.print(n.getValue() + " ");
+    }
+    
+    public Node getRoot() {
+        return root;
+    }
 
 
 }
