@@ -15,15 +15,15 @@ public class RunTest {
         System.out.println("Check if node was added into our Tree");
         System.out.println(bTree.hasNode(7));
         
-        System.out.println("Binary Tree Pre-order");
+        System.out.println("B-Tree Pre-order");
         bTree.printNodePreorder(bTree.getRoot());
         System.out.println();
         
-        System.out.println("Binary Tree In-order");
+        System.out.println("B-Tree In-order");
         bTree.printNodeInorder(bTree.getRoot());
         System.out.println();
         
-        System.out.println("Binary Tree Post-order");
+        System.out.println("B-Tree Post-order");
         bTree.printNodePostorder(bTree.getRoot());
     }
 }
