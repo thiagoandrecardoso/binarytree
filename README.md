@@ -1,4 +1,4 @@
-# Trabalho sobre Árvore Binaria 🌳 🤖
+# Trabalho sobre Árvores-B 🌳 🤖
 ## IFCE Campus Maracanaú 
 
 <p >
