@@ -1,3 +1,6 @@
-/BTree.class
-/Node.class
-/RunTest.class
+/BTree$Entry.class
+/BTree$Node.class
+/BTree$JavaCompatibleBTree$BTreeIterator.class
+/BTree$JavaCompatibleBTree.class
+/BTree$Node$1.class
+/BTree$TreePrinter.class

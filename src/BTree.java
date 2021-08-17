@@ -1,394 +1,932 @@
-public class BTree {
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Deque;
 
-    //Atributos da Classe ArvoreB
-    private Node raiz; //Atributo do Nó raiz;
-    private int ordem; //Ordem da Arvore-B;
-    private int nElementos; //Contador para a quantidade de elementos na arvore B;
+@SuppressWarnings("unchecked")
+public class BTree<T extends Comparable<T>>{
 
-    public BTree(int n) {
-        this.raiz = new Node(n);
-        this.ordem = n;
-        nElementos = 0;
+    // Default to 2-3 Tree
+    private int minKeySize = 1;
+    private int minChildrenSize = minKeySize + 1; // 2
+    private int maxKeySize = 2 * minKeySize; // 2
+    private int maxChildrenSize = maxKeySize + 1; // 3
+
+    private Node<T> root = null;
+    private int size = 0;
+
+    /**
+     * Constructor for B-Tree which defaults to a 2-3 B-Tree.
+     */
+    public BTree() { }
+
+    /**
+     * Constructor for B-Tree of ordered parameter. Order here means minimum 
+     * number of keys in a non-root node. 
+     * 
+     * @param order
+     *            of the B-Tree.
+     */
+    public BTree(int order) {
+        this.minKeySize = order;
+        this.minChildrenSize = minKeySize + 1;
+        this.maxKeySize = 2 * minKeySize;
+        this.maxChildrenSize = maxKeySize + 1;
     }
 
-    //Metodo de Inserção na ArvoreB
-    //parametros: k - chave a ser inserida
-    public void insere(int k) {
-        //Verifica se a chave a ser inserida existe
-        if (BuscaChave(raiz, k) == null) { //só insere se não houver, para evitar duplicação de chaves
-            //verifica se a chave está vazia
-            if (raiz.getNumberNodeInKey() == 0) {
-                raiz.getKeyVector().set(0, k);//seta a chave na primeira posição da raiz
-                raiz.setNumberNodeInKey(raiz.getNumberNodeInKey() + 1);
-            } else { //caso nao estaja vazia
-                Node r = raiz;
-                //verifica se a raiz está cheia
-                if (r.getNumberNodeInKey() == ordem - 1) {//há necessidade de dividir a raiz
-                    Node s = new Node(ordem);
-                    raiz = s;
-                    s.setItsLeaf(false);
-                    s.setNumberNodeInKey(0);
-                    s.getSonVector().set(0, r);
-                    divideNo(s, 0, r);//divide nó
-                    insereNoNaoCheio(s, k);//depois de dividir a raiz começa inserindo apartir da raiz
-
-                } else {//caso contrario começa inserindo apartir da raiz
-                    insereNoNaoCheio(r, k);
-                }
-            }
-            nElementos++;//incrementa o numero de elemantos na arvore
-        }
-    }
-
-    //Método de Remoção de uma determinada chave da arvoreB
-    public void Remove(int k) {
-        //verifica se a chave a ser removida existe
-        if (BuscaChave(this.raiz, k) != null) {
-            //N é o nó onde se encontra k
-            Node N = BuscaChave(this.raiz, k);
-            int i = 1;
-
-            //adquire a posição correta da chave em N
-            while (N.getKeyVector().get(i - 1) < k) {
-                i++;
-            }
-
-            //se N for folha, remove ela e deve se balancear N
-            if (N.isItsLeaf()) {
-                for (int j = i + 1; j <= N.getNumberNodeInKey(); j++) {
-                    N.getKeyVector().set(j - 2, N.getKeyVector().get(j - 1));//desloca chaves quando tem mais de uma
-                }
-                N.setNumberNodeInKey(N.getNumberNodeInKey() - 1);
-                if (N != this.raiz) {
-                    Balanceia_Folha(N);//Balanceia N
-                }
-            } else {//caso contrário(N nao é folha), substitui a chave por seu antecessor e balanceia a folha onde se encontrava o ancecessor
-                Node S = Antecessor(this.raiz, k);//S eh onde se encontra o antecessor de k
-                int y = S.getKeyVector().get(S.getNumberNodeInKey() - 1);//y é o antecessor de k
-                S.setNumberNodeInKey(S.getNumberNodeInKey() - 1);
-                N.getKeyVector().set(i - 1, y);//substitui a chave por y
-                Balanceia_Folha(S);//balanceia S
-            }
-            nElementos--;//decrementa o numero de elementos na arvoreB
-        }
-    }
-
-    //Metodo que retorna o nó onde a chave antecessora de K se encontra
-    //Parâmetros: N - Nó onde começa a busca, k - chave a ser buscada
-    private Node Antecessor(Node N, int k) {
-        int i = 1;
-        while (i <= N.getNumberNodeInKey() && N.getKeyVector().get(i - 1) < k) {
-            i++;
-        }
-        if (N.isItsLeaf()) {
-            return N;
+    /**
+     * {@inheritDoc}
+     */
+    public boolean insert(T value) {
+        if (root == null) {
+            root = new Node<T>(null, maxKeySize, maxChildrenSize);
+            root.addKey(value);
         } else {
-            return Antecessor(N.getSonVector().get(i - 1), k);
-        }
-    }
-
-    //Métode de Balancear um nó folha
-    //Parâmetros: F - nó Folha a ser balanceada
-    private void Balanceia_Folha(Node F) {
-        //verifica se F está cheio
-        if (F.getNumberNodeInKey() < Math.floor((ordem - 1) / 2)) {
-            Node P = getPai(raiz, F);//P é o pai de F
-            int j = 1;
-
-            //adquire a posição de F em P
-            while (P.getSonVector().get(j - 1) != F) {
-                j++;
-            }
-
-            //verifica se o irmão à esquerda de F não tem chaves para emprestar
-            if (j == 1 || (P.getSonVector().get(j - 2)).getNumberNodeInKey() == Math.floor((ordem - 1) / 2)) {
-                //verifica se o irmão à direita de F não tem chaves para emprestar
-                if (j == P.getNumberNodeInKey() + 1 || (P.getSonVector().get(j).getNumberNodeInKey() == Math.floor((ordem - 1) / 2))) {
-                    Diminui_Altura(F); //nenhum irmão tem chaves para emprestar eh necessario diminuir a altura
-                } else {//caso contrario (tem chaves para emprestar) executa Balanceia_Dir_Esq
-                    Balanceia_Dir_Esq(P, j - 1, P.getSonVector().get(j), F);
+            Node<T> node = root;
+            while (node != null) {
+                if (node.numberOfChildren() == 0) {
+                    node.addKey(value);
+                    if (node.numberOfKeys() <= maxKeySize) {
+                        // A-OK
+                        break;
+                    }                         
+                    // Need to split up
+                    split(node);
+                    break;
                 }
-            } else {//caso contrario (tem chaves para emprestar) executa Balanceia_Esq_Dir
-                Balanceia_Esq_Dir(P, j - 2, P.getSonVector().get(j - 2), F);
-            }
-        }
-    }
+                // Navigate
 
-    //Mótodo de Balancear da esquerda para a direita
-    //Parâmetros: P - Nó pai, e - indica que Esq é o e-ésimo filho de P, Esq - Nó da esquerda, Dir - Nó da direita
-    private void Balanceia_Esq_Dir(Node P, int e, Node Esq, Node Dir) {
-        //Desloca as chave de Dir uma posicao para a direita
-        for (int i = 0; i < Dir.getNumberNodeInKey(); i++) {
-            Dir.getKeyVector().set(i + 1, Dir.getKeyVector().get(i));
-        }
-
-        //Se Dir nao for folha descola seu filhos uma posicao para a direita
-        if (!Dir.isItsLeaf()) {//nao foi testado, mas teoricamente funciona
-            for (int i = 0; i > Dir.getNumberNodeInKey(); i++) {
-                Dir.getSonVector().set(i + 1, Dir.getSonVector().get(i));
-            }
-        }
-        Dir.setNumberNodeInKey(Dir.getNumberNodeInKey() + 1);//Incrementa a quantidades de chaves em Dir
-        Dir.getKeyVector().set(0, P.getKeyVector().get(e));//"desce" uma chave de P para Dir
-        P.getKeyVector().set(e, Esq.getKeyVector().get(Esq.getNumberNodeInKey() - 1));//"sobe" uma chave de Esq para P
-        Dir.getSonVector().set(0, Esq.getSonVector().get(Esq.getNumberNodeInKey()));//Seta o ultimo filho de Esq como primeiro filho de Dir
-        Esq.setNumberNodeInKey(Esq.getNumberNodeInKey() - 1);//Decrementa a quantidade de chaves em Esq
-
-    }
-
-
-    //Método de Balancear da direita para a esquerda
-    //Parâmetros: P - Nó pai, e - indica que Dir é o e-ésimo filho de P, Dir - Nó da direita, Esq - Nó da esquerda
-    private void Balanceia_Dir_Esq(Node P, int e, Node Dir, Node Esq) {
-
-        Esq.setNumberNodeInKey(Esq.getNumberNodeInKey() + 1);//Incrementa a quantidade de chaves em Esq
-        Esq.getKeyVector().set(Esq.getNumberNodeInKey() - 1, P.getKeyVector().get(e));//"desce" uma chave de P para Esq
-        P.getKeyVector().set(e, Dir.getKeyVector().get(0));//"sobe" uma chave de Dir para P
-        Esq.getSonVector().set(Esq.getNumberNodeInKey(), Dir.getSonVector().get(0));//Seta o primeiro filho de Dir como último filho de Esq
-
-        //descola as chaves de Dir uma posição para a esquerda
-        for (int j = 1; j < Dir.getNumberNodeInKey(); j++) {
-            Dir.getKeyVector().set(j - 1, Dir.getKeyVector().get(j));
-        }
-
-        //se Dir nao for folha, desloca todos os filhos de Dir uma posicao a esquerda
-        if (!Dir.isItsLeaf()) {//nao foi testado, mas teoricamente funciona
-            for (int i = 1; i < Dir.getNumberNodeInKey()+1 ; i++) {
-                Dir.getSonVector().set(i - 1, Dir.getSonVector().get(i));
-            }
-        }
-
-        //descrementa a quantidade de chaves de Dir
-        Dir.setNumberNodeInKey(Dir.getNumberNodeInKey() - 1);
-
-    }
-
-    //Método para diminuir a altura
-    //Parâmetros: X - nó onde vai ser diminuido a altura
-    private void Diminui_Altura(Node X) {
-        int j;
-        Node P = new Node(ordem);
-
-        //verifica se X é a raiz
-        if (X == this.raiz) {
-            //verifica se X está vazio
-            if (X.getNumberNodeInKey() == 0) {
-                this.raiz = X.getSonVector().get(0);//o filho o de x passa a ser raiz
-                X.getSonVector().set(0, null); // desaloca o filho de x
-            }
-        } else {//caso contrario(X nao é raiz)
-            int t = (int) Math.floor((ordem - 1) / 2);
-            //verifica se o numero de chaves de X é menor que o permitido
-            if (X.getNumberNodeInKey() < t) {
-                P = getPai(raiz, X);//P é pai de X
-                j = 1;
-
-                //adquire a posicao correta do filho X em P
-                while (P.getSonVector().get(j - 1) != X) {
-                    j++;
+                // Lesser or equal
+                T lesser = node.getKey(0);
+                if (value.compareTo(lesser) <= 0) {
+                    node = node.getChild(0);
+                    continue;
                 }
 
-                //junta os nós
-                if (j > 1) {
-                    Juncao_No(getPai(raiz, X), j - 1);
-                } else {
-                    Juncao_No(getPai(raiz, X), j);
+                // Greater
+                int numberOfKeys = node.numberOfKeys();
+                int last = numberOfKeys - 1;
+                T greater = node.getKey(last);
+                if (value.compareTo(greater) > 0) {
+                    node = node.getChild(numberOfKeys);
+                    continue;
                 }
-                Diminui_Altura(getPai(raiz, X));
+
+                // Search internal nodes
+                for (int i = 1; i < node.numberOfKeys(); i++) {
+                    T prev = node.getKey(i - 1);
+                    T next = node.getKey(i);
+                    if (value.compareTo(prev) > 0 && value.compareTo(next) <= 0) {
+                        node = node.getChild(i);
+                        break;
+                    }
+                }
             }
+        }
+
+        size++;
+
+        return true;
+    }
+
+    /**
+     * The node's key size is greater than maxKeySize, split down the middle.
+     * 
+     * @param nodeToSplit
+     *            to split.
+     */
+    private void split(Node<T> nodeToSplit) {
+        Node<T> node = nodeToSplit;
+        int numberOfKeys = node.numberOfKeys();
+        int medianIndex = numberOfKeys / 2;
+        T medianValue = node.getKey(medianIndex);
+
+        Node<T> left = new Node<T>(null, maxKeySize, maxChildrenSize);
+        for (int i = 0; i < medianIndex; i++) {
+            left.addKey(node.getKey(i));
+        }
+        if (node.numberOfChildren() > 0) {
+            for (int j = 0; j <= medianIndex; j++) {
+                Node<T> c = node.getChild(j);
+                left.addChild(c);
+            }
+        }
+
+        Node<T> right = new Node<T>(null, maxKeySize, maxChildrenSize);
+        for (int i = medianIndex + 1; i < numberOfKeys; i++) {
+            right.addKey(node.getKey(i));
+        }
+        if (node.numberOfChildren() > 0) {
+            for (int j = medianIndex + 1; j < node.numberOfChildren(); j++) {
+                Node<T> c = node.getChild(j);
+                right.addChild(c);
+            }
+        }
+
+        if (node.parent == null) {
+            // new root, height of tree is increased
+            Node<T> newRoot = new Node<T>(null, maxKeySize, maxChildrenSize);
+            newRoot.addKey(medianValue);
+            node.parent = newRoot;
+            root = newRoot;
+            node = root;
+            node.addChild(left);
+            node.addChild(right);
+        } else {
+            // Move the median value up to the parent
+            Node<T> parent = node.parent;
+            parent.addKey(medianValue);
+            parent.removeChild(node);
+            parent.addChild(left);
+            parent.addChild(right);
+
+            if (parent.numberOfKeys() > maxKeySize) split(parent);
         }
     }
 
-    //Método para junção do nó
-    //Parâmetros: X - No pai, i - posicao do filho de X onde vai ser juntado
-    private void Juncao_No(Node X, int i) {
-        Node Y = X.getSonVector().get(i - 1); //cria Y
-        Node Z = X.getSonVector().get(i);//cria Z
-
-        int k = Y.getNumberNodeInKey();
-        Y.getKeyVector().set(k, X.getKeyVector().get(i - 1));//"desce" uma chave de X para X
-
-        //descola as de chaves de Z para Y
-        for (int j = 1; j <= Z.getNumberNodeInKey(); j++) {
-            Y.getKeyVector().set(j + k, Z.getKeyVector().get(j - 1));
-        }
-
-        //se Z nao for folha, descola seus filhos tbm
-        if (!Z.isItsLeaf()) {
-            for (int j = 1; j <= Z.getNumberNodeInKey(); j++) {
-                Y.getSonVector().set(j + k, Z.getSonVector().get(j - 1));
-            }
-        }
-
-        //seta a quantidades de chaves em Y
-        Y.setNumberNodeInKey(Y.getNumberNodeInKey() + Z.getNumberNodeInKey() + 1);
-
-        X.getSonVector().set(i, null);//desaloca o Z setando o filho de X que apontava pra Z pra null
-
-        //descola os filhos e as chaves de X uma para a esquera, para "fechar o buraco"
-        for (int j = i; j <= X.getNumberNodeInKey() - 1; j++) {//ainda nao
-            X.getKeyVector().set(j - 1, X.getKeyVector().get(j));
-            X.getSonVector().set(j, X.getSonVector().get(j + 1));
-        }
-
-        //decrementa a quantidade de chaves em X
-        X.setNumberNodeInKey(X.getNumberNodeInKey() - 1);
+    /**
+     * {@inheritDoc}
+     */
+    public T remove(T value) {
+        T removed = null;
+        Node<T> node = this.getNode(value);
+        removed = remove(value,node);
+        return removed;
     }
 
-    //Metodo que retorna o nó pai de N
-    //Parâmetros: T - Nó onde começa a busca, N - nó que deve se buscar o pai
-    private Node getPai(Node T, Node N) {
-        if (this.raiz == N) {
-            return null;
-        }
-        for (int j = 0; j <= T.getNumberNodeInKey(); j++) {
-            if (T.getSonVector().get(j) == N) {
-                return T;
+    /**
+     * Remove the value from the Node and check invariants
+     * 
+     * @param value
+     *            T to remove from the tree
+     * @param node
+     *            Node to remove value from
+     * @return True if value was removed from the tree.
+     */
+    private T remove(T value, Node<T> node) {
+        if (node == null) return null;
+
+        T removed = null;
+        int index = node.indexOf(value);
+        removed = node.removeKey(value);
+        if (node.numberOfChildren() == 0) {
+            // leaf node
+            if (node.parent != null && node.numberOfKeys() < minKeySize) {
+                this.combined(node);
+            } else if (node.parent == null && node.numberOfKeys() == 0) {
+                // Removing root node with no keys or children
+                root = null;
             }
-            if (!T.getSonVector().get(j).isItsLeaf()) {
-                Node X = getPai(T.getSonVector().get(j), N);
-                if (X != null) {
-                    return X;
+        } else {
+            // internal node
+            Node<T> lesser = node.getChild(index);
+            Node<T> greatest = this.getGreatestNode(lesser);
+            T replaceValue = this.removeGreatestValue(greatest);
+            node.addKey(replaceValue);
+            if (greatest.parent != null && greatest.numberOfKeys() < minKeySize) {
+                this.combined(greatest);
+            }
+            if (greatest.numberOfChildren() > maxChildrenSize) {
+                this.split(greatest);
+            }
+        }
+
+        size--;
+
+        return removed;
+    }
+
+    /**
+     * Remove greatest valued key from node.
+     * 
+     * @param node
+     *            to remove greatest value from.
+     * @return value removed;
+     */
+    private T removeGreatestValue(Node<T> node) {
+        T value = null;
+        if (node.numberOfKeys() > 0) {
+            value = node.removeKey(node.numberOfKeys() - 1);
+        }
+        return value;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void clear() {
+        root = null;
+        size = 0;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public boolean contains(T value) {
+        Node<T> node = getNode(value);
+        return (node != null);
+    }
+
+    /**
+     * Get the node with value.
+     * 
+     * @param value
+     *            to find in the tree.
+     * @return Node<T> with value.
+     */
+    private Node<T> getNode(T value) {
+        Node<T> node = root;
+        while (node != null) {
+            T lesser = node.getKey(0);
+            if (value.compareTo(lesser) < 0) {
+                if (node.numberOfChildren() > 0)
+                    node = node.getChild(0);
+                else
+                    node = null;
+                continue;
+            }
+
+            int numberOfKeys = node.numberOfKeys();
+            int last = numberOfKeys - 1;
+            T greater = node.getKey(last);
+            if (value.compareTo(greater) > 0) {
+                if (node.numberOfChildren() > numberOfKeys)
+                    node = node.getChild(numberOfKeys);
+                else
+                    node = null;
+                continue;
+            }
+
+            for (int i = 0; i < numberOfKeys; i++) {
+                T currentValue = node.getKey(i);
+                if (currentValue.compareTo(value) == 0) {
+                    return node;
+                }
+
+                int next = i + 1;
+                if (next <= last) {
+                    T nextValue = node.getKey(next);
+                    if (currentValue.compareTo(value) < 0 && nextValue.compareTo(value) > 0) {
+                        if (next < node.numberOfChildren()) {
+                            node = node.getChild(next);
+                            break;
+                        }
+                        return null;
+                    }
                 }
             }
         }
         return null;
     }
 
-    //Método de busca de uma chave, retorna um nó onde a chave buscada se encontra
-    //Parâmetros: X - nó por onde começar a busca, k - chave a ser buscada
-    public Node BuscaChave(Node X, int k) {
-        int i = 1;
-        //procura ate nao estourar o tamanho e ate o valor nao ser maior q o procurado
-        while ((i <= X.getNumberNodeInKey()) && (k > X.getKeyVector().get(i - 1))) {
-            i++;
+    /**
+     * Get the greatest valued child from node.
+     * 
+     * @param nodeToGet
+     *            child with the greatest value.
+     * @return Node<T> child with greatest value.
+     */
+    private Node<T> getGreatestNode(Node<T> nodeToGet) {
+        Node<T> node = nodeToGet;
+        while (node.numberOfChildren() > 0) {
+            node = node.getChild(node.numberOfChildren() - 1);
         }
-        //se o tamanho nao tiver excedido e for o valor procurado..
-        if ((i <= X.getNumberNodeInKey()) && (k == X.getKeyVector().get(i - 1))) {
-            return X;
-        }
-        //se nao foi é igual, entao foi o tamanho q excedeu. ai procura no filho se nao for folha
-        if (X.isItsLeaf()) { //se o no X for folha
-            return null;
-        } else {
-            return (BuscaChave(X.getSonVector().get(i - 1), k));
-        }
+        return node;
     }
 
-    //Método de divisão de nó
-    //Parâmetros: x - nó Pai, y - nó Filho e i - índice i que indica que y é o i-ésimo filho de x.
-    public void divideNo(Node x, int i, Node y) {
-        int t = (int) Math.floor((ordem - 1) / 2);
-        //cria nó z
-        Node z = new Node(ordem);
-        z.setItsLeaf(y.isItsLeaf());
-        z.setNumberNodeInKey(t);
+    /**
+     * Combined children keys with parent when size is less than minKeySize.
+     * 
+     * @param node
+     *            with children to combined.
+     * @return True if combined successfully.
+     */
+    private boolean combined(Node<T> node) {
+        Node<T> parent = node.parent;
+        int index = parent.indexOf(node);
+        int indexOfLeftNeighbor = index - 1;
+        int indexOfRightNeighbor = index + 1;
 
-        //passa as t ultimas chaves de y para z
-        for (int j = 0; j < t; j++) {
-            if ((ordem - 1) % 2 == 0) {
-                z.getKeyVector().set(j, y.getKeyVector().get(j + t));
-            } else {
-                z.getKeyVector().set(j, y.getKeyVector().get(j + t + 1));
-            }
-            y.setNumberNodeInKey(y.getNumberNodeInKey() - 1);
+        Node<T> rightNeighbor = null;
+        int rightNeighborSize = -minChildrenSize;
+        if (indexOfRightNeighbor < parent.numberOfChildren()) {
+            rightNeighbor = parent.getChild(indexOfRightNeighbor);
+            rightNeighborSize = rightNeighbor.numberOfKeys();
         }
 
-        //se y nao for folha, pasa os t+1 últimos flhos de y para z
-        if (!y.isItsLeaf()) {
-            for (int j = 0; j < t + 1; j++) {
-                if ((ordem - 1) % 2 == 0) {
-                    z.getSonVector().set(j, y.getSonVector().get(j + t));
-                } else {
-                    z.getSonVector().set(j, y.getSonVector().get(j + t + 1));
+        // Try to borrow neighbor
+        if (rightNeighbor != null && rightNeighborSize > minKeySize) {
+            // Try to borrow from right neighbor
+            T removeValue = rightNeighbor.getKey(0);
+            int prev = getIndexOfPreviousValue(parent, removeValue);
+            T parentValue = parent.removeKey(prev);
+            T neighborValue = rightNeighbor.removeKey(0);
+            node.addKey(parentValue);
+            parent.addKey(neighborValue);
+            if (rightNeighbor.numberOfChildren() > 0) {
+                node.addChild(rightNeighbor.removeChild(0));
+            }
+        } else {
+            Node<T> leftNeighbor = null;
+            int leftNeighborSize = -minChildrenSize;
+            if (indexOfLeftNeighbor >= 0) {
+                leftNeighbor = parent.getChild(indexOfLeftNeighbor);
+                leftNeighborSize = leftNeighbor.numberOfKeys();
+            }
+
+            if (leftNeighbor != null && leftNeighborSize > minKeySize) {
+                // Try to borrow from left neighbor
+                T removeValue = leftNeighbor.getKey(leftNeighbor.numberOfKeys() - 1);
+                int prev = getIndexOfNextValue(parent, removeValue);
+                T parentValue = parent.removeKey(prev);
+                T neighborValue = leftNeighbor.removeKey(leftNeighbor.numberOfKeys() - 1);
+                node.addKey(parentValue);
+                parent.addKey(neighborValue);
+                if (leftNeighbor.numberOfChildren() > 0) {
+                    node.addChild(leftNeighbor.removeChild(leftNeighbor.numberOfChildren() - 1));
+                }
+            } else if (rightNeighbor != null && parent.numberOfKeys() > 0) {
+                // Can't borrow from neighbors, try to combined with right neighbor
+                T removeValue = rightNeighbor.getKey(0);
+                int prev = getIndexOfPreviousValue(parent, removeValue);
+                T parentValue = parent.removeKey(prev);
+                parent.removeChild(rightNeighbor);
+                node.addKey(parentValue);
+                for (int i = 0; i < rightNeighbor.keysSize; i++) {
+                    T v = rightNeighbor.getKey(i);
+                    node.addKey(v);
+                }
+                for (int i = 0; i < rightNeighbor.childrenSize; i++) {
+                    Node<T> c = rightNeighbor.getChild(i);
+                    node.addChild(c);
                 }
 
-            }
-        }
+                if (parent.parent != null && parent.numberOfKeys() < minKeySize) {
+                    // removing key made parent too small, combined up tree
+                    this.combined(parent);
+                } else if (parent.numberOfKeys() == 0) {
+                    // parent no longer has keys, make this node the new root
+                    // which decreases the height of the tree
+                    node.parent = null;
+                    root = node;
+                }
+            } else if (leftNeighbor != null && parent.numberOfKeys() > 0) {
+                // Can't borrow from neighbors, try to combined with left neighbor
+                T removeValue = leftNeighbor.getKey(leftNeighbor.numberOfKeys() - 1);
+                int prev = getIndexOfNextValue(parent, removeValue);
+                T parentValue = parent.removeKey(prev);
+                parent.removeChild(leftNeighbor);
+                node.addKey(parentValue);
+                for (int i = 0; i < leftNeighbor.keysSize; i++) {
+                    T v = leftNeighbor.getKey(i);
+                    node.addKey(v);
+                }
+                for (int i = 0; i < leftNeighbor.childrenSize; i++) {
+                    Node<T> c = leftNeighbor.getChild(i);
+                    node.addChild(c);
+                }
 
-        y.setNumberNodeInKey(t);//seta a nova quantidade de chaves de y
-
-        //descola os filhos de x uma posição para a direita
-        for (int j = x.getNumberNodeInKey(); j > i; j--) {
-            x.getSonVector().set(j + 1, x.getSonVector().get(j));
-        }
-
-        x.getSonVector().set(i + 1, z);//seta z como filho de x na posição i+1
-
-        //desloca as chaves de x uma posição para a direita, para podermos subir uma chave de y
-        for (int j = x.getNumberNodeInKey(); j > i; j--) {
-            x.getKeyVector().set(j, x.getKeyVector().get(j - 1));
-        }
-
-        //"sobe" uma chave de y para z
-        if ((ordem - 1) % 2 == 0) {
-            x.getKeyVector().set(i, y.getKeyVector().get(t - 1));
-            y.setNumberNodeInKey(y.getNumberNodeInKey() - 1);
-
-        } else {
-            x.getKeyVector().set(i, y.getKeyVector().get(t));
-        }
-
-        //incrementa o numero de chaves de x
-        x.setNumberNodeInKey(x.getNumberNodeInKey() + 1);
-
-    }
-
-    //Método para inserir uma chave em um nó não cheio
-    //Paâmetros: x - nó a ser inserido, k - chave a ser inserida no nó x
-    public void insereNoNaoCheio(Node x, int k) {
-        int i = x.getNumberNodeInKey() - 1;
-        //verifica se x é um nó folha
-        if (x.isItsLeaf()) {
-            //adquire a posição correta para ser inserido a chave
-            while (i >= 0 && k < x.getKeyVector().get(i)) {
-                x.getKeyVector().set(i + 1, x.getKeyVector().get(i));
-                i--;
-            }
-            i++;
-            x.getKeyVector().set(i, k);//insere a chave na posição i
-            x.setNumberNodeInKey(x.getNumberNodeInKey() + 1);
-
-        } else {//caso x não for folha
-            //adquire a posição correta para ser inserido a chave
-            while ((i >= 0 && k < x.getKeyVector().get(i))) {
-                i--;
-            }
-            i++;
-            //se o filho i de x estiver cheio, divide o mesmo
-            if ((x.getSonVector().get(i)).getNumberNodeInKey() == ordem - 1) {
-                divideNo(x, i, x.getSonVector().get(i));
-                if (k > x.getKeyVector().get(i)) {
-                    i++;
+                if (parent.parent != null && parent.numberOfKeys() < minKeySize) {
+                    // removing key made parent too small, combined up tree
+                    this.combined(parent);
+                } else if (parent.numberOfKeys() == 0) {
+                    // parent no longer has keys, make this node the new root
+                    // which decreases the height of the tree
+                    node.parent = null;
+                    root = node;
                 }
             }
-            //insere a chave no filho i de x
-            insereNoNaoCheio(x.getSonVector().get(i), k);
         }
 
+        return true;
     }
 
-    public Node getRaiz() {
-        return raiz;
+    /**
+     * Get the index of previous key in node.
+     * 
+     * @param node
+     *            to find the previous key in.
+     * @param value
+     *            to find a previous value for.
+     * @return index of previous key or -1 if not found.
+     */
+    private int getIndexOfPreviousValue(Node<T> node, T value) {
+        for (int i = 1; i < node.numberOfKeys(); i++) {
+            T t = node.getKey(i);
+            if (t.compareTo(value) >= 0)
+                return i - 1;
+        }
+        return node.numberOfKeys() - 1;
     }
 
-    public void setRaiz(Node raiz) {
-        this.raiz = raiz;
+    /**
+     * Get the index of next key in node.
+     * 
+     * @param node
+     *            to find the next key in.
+     * @param value
+     *            to find a next value for.
+     * @return index of next key or -1 if not found.
+     */
+    private int getIndexOfNextValue(Node<T> node, T value) {
+        for (int i = 0; i < node.numberOfKeys(); i++) {
+            T t = node.getKey(i);
+            if (t.compareTo(value) >= 0)
+                return i;
+        }
+        return node.numberOfKeys() - 1;
     }
 
-    public int getOrdem() {
-        return ordem;
+    /**
+     * {@inheritDoc}
+     */
+    public int size() {
+        return size;
     }
 
-    public void setOrdem(int ordem) {
-        this.ordem = ordem;
+    /**
+     * {@inheritDoc}
+     */
+    public boolean validate() {
+        if (root == null) return true;
+        return validateNode(root);
     }
 
-    public int getnElementos() {
-        return nElementos;
+    /**
+     * Validate the node according to the B-Tree invariants.
+     * 
+     * @param node
+     *            to validate.
+     * @return True if valid.
+     */
+    private boolean validateNode(Node<T> node) {
+        int keySize = node.numberOfKeys();
+        if (keySize > 1) {
+            // Make sure the keys are sorted
+            for (int i = 1; i < keySize; i++) {
+                T p = node.getKey(i - 1);
+                T n = node.getKey(i);
+                if (p.compareTo(n) > 0)
+                    return false;
+            }
+        }
+        int childrenSize = node.numberOfChildren();
+        if (node.parent == null) {
+            // root
+            if (keySize > maxKeySize) {
+                // check max key size. root does not have a min key size
+                return false;
+            } else if (childrenSize == 0) {
+                // if root, no children, and keys are valid
+                return true;
+            } else if (childrenSize < 2) {
+                // root should have zero or at least two children
+                return false;
+            } else if (childrenSize > maxChildrenSize) {
+                return false;
+            }
+        } else {
+            // non-root
+            if (keySize < minKeySize) {
+                return false;
+            } else if (keySize > maxKeySize) {
+                return false;
+            } else if (childrenSize == 0) {
+                return true;
+            } else if (keySize != (childrenSize - 1)) {
+                // If there are chilren, there should be one more child then
+                // keys
+                return false;
+            } else if (childrenSize < minChildrenSize) {
+                return false;
+            } else if (childrenSize > maxChildrenSize) {
+                return false;
+            }
+        }
+
+        Node<T> first = node.getChild(0);
+        // The first child's last key should be less than the node's first key
+        if (first.getKey(first.numberOfKeys() - 1).compareTo(node.getKey(0)) > 0)
+            return false;
+
+        Node<T> last = node.getChild(node.numberOfChildren() - 1);
+        // The last child's first key should be greater than the node's last key
+        if (last.getKey(0).compareTo(node.getKey(node.numberOfKeys() - 1)) < 0)
+            return false;
+
+        // Check that each node's first and last key holds it's invariance
+        for (int i = 1; i < node.numberOfKeys(); i++) {
+            T p = node.getKey(i - 1);
+            T n = node.getKey(i);
+            Node<T> c = node.getChild(i);
+            if (p.compareTo(c.getKey(0)) > 0)
+                return false;
+            if (n.compareTo(c.getKey(c.numberOfKeys() - 1)) < 0)
+                return false;
+        }
+
+        for (int i = 0; i < node.childrenSize; i++) {
+            Node<T> c = node.getChild(i);
+            boolean valid = this.validateNode(c);
+            if (!valid)
+                return false;
+        }
+
+        return true;
     }
 
-    public void setnElementos(int nElementos) {
-        this.nElementos = nElementos;
+    /**
+     * {@inheritDoc}
+     */
+    public java.util.Collection<T> toCollection() {
+        return (new JavaCompatibleBTree<T>(this));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return TreePrinter.getString(this);
+    }
+
+    private static class Node<T extends Comparable<T>> {
+
+        private T[] keys = null;
+        private int keysSize = 0;
+        private Node<T>[] children = null;
+        private int childrenSize = 0;
+        private Comparator<Node<T>> comparator = new Comparator<Node<T>>() {
+            @Override
+            public int compare(Node<T> arg0, Node<T> arg1) {
+                return arg0.getKey(0).compareTo(arg1.getKey(0));
+            }
+        };
+
+        protected Node<T> parent = null;
+
+        private Node(Node<T> parent, int maxKeySize, int maxChildrenSize) {
+            this.parent = parent;
+            this.keys = (T[]) new Comparable[maxKeySize + 1];
+            this.keysSize = 0;
+            this.children = new Node[maxChildrenSize + 1];
+            this.childrenSize = 0;
+        }
+
+        private T getKey(int index) {
+            return keys[index];
+        }
+
+        private int indexOf(T value) {
+            for (int i = 0; i < keysSize; i++) {
+                if (keys[i].equals(value)) return i;
+            }
+            return -1;
+        }
+
+        private void addKey(T value) {
+            keys[keysSize++] = value;
+            Arrays.sort(keys, 0, keysSize);
+        }
+
+        private T removeKey(T value) {
+            T removed = null;
+            boolean found = false;
+            if (keysSize == 0) return null;
+            for (int i = 0; i < keysSize; i++) {
+                if (keys[i].equals(value)) {
+                    found = true;
+                    removed = keys[i];
+                } else if (found) {
+                    // shift the rest of the keys down
+                    keys[i - 1] = keys[i];
+                }
+            }
+            if (found) {
+                keysSize--;
+                keys[keysSize] = null;
+            }
+            return removed;
+        }
+
+        private T removeKey(int index) {
+            if (index >= keysSize)
+                return null;
+            T value = keys[index];
+            for (int i = index + 1; i < keysSize; i++) {
+                // shift the rest of the keys down
+                keys[i - 1] = keys[i];
+            }
+            keysSize--;
+            keys[keysSize] = null;
+            return value;
+        }
+
+        private int numberOfKeys() {
+            return keysSize;
+        }
+
+        private Node<T> getChild(int index) {
+            if (index >= childrenSize)
+                return null;
+            return children[index];
+        }
+
+        private int indexOf(Node<T> child) {
+            for (int i = 0; i < childrenSize; i++) {
+                if (children[i].equals(child))
+                    return i;
+            }
+            return -1;
+        }
+
+        private boolean addChild(Node<T> child) {
+            child.parent = this;
+            children[childrenSize++] = child;
+            Arrays.sort(children, 0, childrenSize, comparator);
+            return true;
+        }
+
+        private boolean removeChild(Node<T> child) {
+            boolean found = false;
+            if (childrenSize == 0)
+                return found;
+            for (int i = 0; i < childrenSize; i++) {
+                if (children[i].equals(child)) {
+                    found = true;
+                } else if (found) {
+                    // shift the rest of the keys down
+                    children[i - 1] = children[i];
+                }
+            }
+            if (found) {
+                childrenSize--;
+                children[childrenSize] = null;
+            }
+            return found;
+        }
+
+        private Node<T> removeChild(int index) {
+            if (index >= childrenSize)
+                return null;
+            Node<T> value = children[index];
+            children[index] = null;
+            for (int i = index + 1; i < childrenSize; i++) {
+                // shift the rest of the keys down
+                children[i - 1] = children[i];
+            }
+            childrenSize--;
+            children[childrenSize] = null;
+            return value;
+        }
+
+        private int numberOfChildren() {
+            return childrenSize;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public String toString() {
+            StringBuilder builder = new StringBuilder();
+
+            builder.append("keys=[");
+            for (int i = 0; i < numberOfKeys(); i++) {
+                T value = getKey(i);
+                builder.append(value);
+                if (i < numberOfKeys() - 1)
+                    builder.append(", ");
+            }
+            builder.append("]\n");
+
+            if (parent != null) {
+                builder.append("parent=[");
+                for (int i = 0; i < parent.numberOfKeys(); i++) {
+                    T value = parent.getKey(i);
+                    builder.append(value);
+                    if (i < parent.numberOfKeys() - 1)
+                        builder.append(", ");
+                }
+                builder.append("]\n");
+            }
+
+            if (children != null) {
+                builder.append("keySize=").append(numberOfKeys()).append(" children=").append(numberOfChildren()).append("\n");
+            }
+
+            return builder.toString();
+        }
+    }
+
+    private static class TreePrinter {
+
+        public static <T extends Comparable<T>> String getString(BTree<T> tree) {
+            if (tree.root == null) return "Tree has no nodes.";
+            return getString(tree.root, "", true);
+        }
+
+        private static <T extends Comparable<T>> String getString(Node<T> node, String prefix, boolean isTail) {
+            StringBuilder builder = new StringBuilder();
+
+            builder.append(prefix).append((isTail ? "└── " : "├── "));
+            for (int i = 0; i < node.numberOfKeys(); i++) {
+                T value = node.getKey(i);
+                builder.append(value);
+                if (i < node.numberOfKeys() - 1)
+                    builder.append(", ");
+            }
+            builder.append("\n");
+
+            if (node.children != null) {
+                for (int i = 0; i < node.numberOfChildren() - 1; i++) {
+                    Node<T> obj = node.getChild(i);
+                    builder.append(getString(obj, prefix + (isTail ? "    " : "│   "), false));
+                }
+                if (node.numberOfChildren() >= 1) {
+                    Node<T> obj = node.getChild(node.numberOfChildren() - 1);
+                    builder.append(getString(obj, prefix + (isTail ? "    " : "│   "), true));
+                }
+            }
+
+            return builder.toString();
+        }
+    }
+
+    public static class JavaCompatibleBTree<T extends Comparable<T>> extends java.util.AbstractCollection<T> {
+
+        private BTree<T> tree = null;
+
+        public JavaCompatibleBTree(BTree<T> tree) {
+            this.tree = tree;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean add(T value) {
+            return tree.insert(value);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean remove(Object value) {
+            return (tree.remove((T)value)!=null);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean contains(Object value) {
+            return tree.contains((T)value);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int size() {
+            return tree.size();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public java.util.Iterator<T> iterator() {
+            return (new BTreeIterator<T>(this.tree));
+        }
+
+        private static class BTreeIterator<C extends Comparable<C>> implements java.util.Iterator<C> {
+
+            private BTree<C> tree = null;
+            private BTree.Node<C> lastNode = null;
+            private C lastValue = null;
+            private int index = 0;
+            private Deque<BTree.Node<C>> toVisit = new ArrayDeque<BTree.Node<C>>();
+
+            protected BTreeIterator(BTree<C> tree) {
+                this.tree = tree;
+                if (tree.root!=null && tree.root.keysSize>0) {
+                    toVisit.add(tree.root);
+                }
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean hasNext() {
+                if ((lastNode!=null && index<lastNode.keysSize)||(toVisit.size()>0)) return true; 
+                return false;
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public C next() {
+                if (lastNode!=null && (index < lastNode.keysSize)) {
+                    lastValue = lastNode.getKey(index++);
+                    return lastValue;
+                }
+                while (toVisit.size()>0) {
+                    // Go thru the current nodes
+                    BTree.Node<C> n = toVisit.pop();
+
+                    // Add non-null children
+                    for (int i=0; i<n.childrenSize; i++) {
+                        toVisit.add(n.getChild(i));
+                    }
+
+                    // Update last node (used in remove method)
+                    index = 0;
+                    lastNode = n;
+                    lastValue = lastNode.getKey(index++);
+                    return lastValue;
+                }
+                return null;
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public void remove() {
+                if (lastNode!=null && lastValue!=null) {
+                    // On remove, reset the iterator (very inefficient, I know)
+                    tree.remove(lastValue,lastNode);
+
+                    lastNode = null;
+                    lastValue = null;
+                    index = 0;
+                    toVisit.clear();
+                    if (tree.root!=null && tree.root.keysSize>0) {
+                        toVisit.add(tree.root);
+                    }
+                }
+            }
+        }
+    }
+    
+    public static void main(String[] args) 
+    {
+    	
+    	BTree t = new BTree(3);
+    	
+    	t.insert(0);
+    	t.insert(1);
+    	t.insert(2);
+    	
+    	t.insert(6);
+    	t.insert(7);
+    	t.insert(8);
+    	
+    	t.insert(11);
+    	t.insert(12);
+    	t.insert(13);
+    	
+    	t.insert(20);
+    	t.insert(21);
+    	t.insert(22);
+    	
+    	t.insert(4);
+    	t.insert(10);
+    	t.insert(17);
+    	
+    	System.out.println(t);
+    	System.out.println();
+    	System.out.println();
+    	System.out.println("Tamanho: " + t.size);
+    	System.out.println();
+    	
+    	System.out.println(t.contains(12));
+    	System.out.println();
+    	
+    	t.remove(1);
+    	t.remove(7);
+    	t.remove(12);
+    	t.remove(21);
+    	
+    	System.out.println(t);
+    	System.out.println();
+    	System.out.println();
+    	System.out.println("Tamanho: " + t.size);
+    	System.out.println();
+    	System.out.println();
+    	
+    	t.split(t.getNode(10));
+    	
+    	System.out.println(t);
+    	
+    	System.out.println(t.contains(12));
+    	
+    	
     }
 }
+
+
